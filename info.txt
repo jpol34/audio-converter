@@ -1,0 +1,6 @@
+pyinstaller --noconsole --onefile --name WavConverter --add-binary "ffmpeg/bin/ffmpeg.exe;ffmpeg/bin" --add-binary "ffmpeg/bin/ffprobe.exe;ffmpeg/bin" main.py
+
+git add .
+git commit -m "Your commit message for current work"
+bump2version minor
+git push --follow-tags
