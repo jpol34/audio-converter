@@ -2,16 +2,16 @@ import os
 import subprocess
 import shutil
 import sys
-import tkinter as tk
-from tkinter import ttk, filedialog
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
+from tkinter import filedialog
 from pathlib import Path
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Function to find FFmpeg in the specified directory
 def get_ffmpeg_paths():
-    exe_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))  # Support for PyInstaller
+    exe_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))  
     ffmpeg_dir = exe_dir / "ffmpeg" / "bin"
     
     ffmpeg_exec = ffmpeg_dir / "ffmpeg.exe"
@@ -26,50 +26,81 @@ class AudioConverterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Audio Converter")
-        self.root.geometry("600x350")
-        
-        # Dynamically locate the icon file
-        icon_path = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / "icon.ico"
-        if icon_path.exists():
-            self.root.iconbitmap(str(icon_path))
-
-        # Title Label
-        self.status_label = tk.Label(root, text="Audio Converter", font=("Arial", 14, "bold"))
-        self.status_label.pack(pady=10)
+        self.root.geometry("700x420")  
 
         # Progress Bar
-        self.progress = ttk.Progressbar(root, orient=tk.HORIZONTAL, mode="determinate", length=500)
+        self.progress = ttk.Progressbar(root, orient=HORIZONTAL, mode="determinate", length=600, bootstyle="info")
         self.progress.pack(pady=10, padx=20)
 
-        # Status message area
-        self.message_label = tk.Label(root, text="Select a folder to start conversion", font=("Arial", 12))
-        self.message_label.pack(pady=5)
+        # Folder Selection Feedback
+        self.folder_label = ttk.Label(root, text="No folder selected.", font=("Arial", 10), bootstyle="secondary")
+        self.folder_label.pack(pady=2)
+
+        # Status Message
+        self.status_label = ttk.Label(root, text="Select audio files to begin.", font=("Arial", 11), bootstyle="secondary")
+        self.status_label.pack(pady=5)
 
         # Button Frame
-        button_frame = tk.Frame(root)
-        button_frame.pack(pady=15)
+        button_frame = ttk.Frame(root)
+        button_frame.pack(pady=10)
         
-        self.select_folder_button = tk.Button(button_frame, text="Select Folder", command=self.select_folder, font=("Arial", 11), width=15, height=2)
+        self.select_folder_button = ttk.Button(button_frame, text="Select Files", command=self.select_files, bootstyle="secondary", width=15)
         self.select_folder_button.grid(row=0, column=0, padx=10)
         
-        self.convert_button = tk.Button(button_frame, text="Start Conversion", command=self.run_conversion, font=("Arial", 11), width=15, height=2)
+        self.convert_button = ttk.Button(button_frame, text="Start Conversion", command=self.run_conversion, bootstyle="success", width=15)
         self.convert_button.grid(row=0, column=1, padx=10)
         
-        self.exit_button = tk.Button(button_frame, text="Exit", command=root.quit, font=("Arial", 11), width=15, height=2)
+        self.exit_button = ttk.Button(button_frame, text="Exit", command=root.quit, bootstyle="danger", width=15)
         self.exit_button.grid(row=0, column=2, padx=10)
 
-        self.input_folder = None
-    
-    def select_folder(self):
-        self.input_folder = filedialog.askdirectory(title="Select Input Folder")
-        if self.input_folder:
-            self.message_label.config(text=f"Selected Folder: {self.input_folder}")
-    
-    def log_message(self, message):
-        self.message_label.config(text=message)
+        # Summary Display Area
+        self.summary_frame = ttk.Frame(root)
+        self.summary_frame.pack(pady=10, fill="x", padx=20)
+
+        self.summary_label = ttk.Label(self.summary_frame, text="", font=("Arial", 10), bootstyle="light")
+        self.summary_label.pack(pady=5)
+
+        self.selected_files = []  
+
+    def select_files(self):
+        """ Allows user to select multiple audio files and extracts their folder path. """
+        filetypes = [("Audio Files", "*.wav;*.m4a;*.aac;*.mp3"), ("All Files", "*.*")]
+        files = filedialog.askopenfilenames(title="Select Audio Files", filetypes=filetypes)
+
+        if files:
+            self.selected_files = files
+            folder_path = str(Path(files[0]).parent)  
+            self.folder_label.config(text=f"📂 Selected: {folder_path}", bootstyle="info")
+
+    def update_status(self, message, style="secondary"):
+        """ Updates the status label. """
+        self.status_label.config(text=message, bootstyle=style)
         self.root.update_idletasks()
 
+    def format_time(self, seconds):
+        """ Converts seconds to 'Xm Ys' format. """
+        if seconds < 60:
+            return f"{seconds:.1f}s"
+        else:
+            minutes = int(seconds // 60)
+            seconds = int(seconds % 60)
+            return f"{minutes}m {seconds}s"
+
+    def display_summary(self, converted, failed, zip_path, size_reduction_mb, elapsed_time):
+        """ Displays the summary inside the app. """
+        formatted_time = self.format_time(elapsed_time)
+        summary_text = (
+            f"✅ Conversion Complete!\n"
+            f"🎵 Files Converted: {converted}\n"
+            f"⚠️ Failed: {failed}\n"
+            f"📦 ZIP File: {zip_path}\n"
+            f"📉 Size Reduction: {size_reduction_mb} MB\n"
+            f"⏱️ Time Taken: {formatted_time}"
+        )
+        self.summary_label.config(text=summary_text, bootstyle="info")
+
     def convert_file(self, ffmpeg_path, input_path, output_path):
+        """ Converts a single file using FFmpeg. """
         try:
             file_size_before = Path(input_path).stat().st_size
             ffmpeg_command = [ffmpeg_path, "-i", input_path, "-acodec", "pcm_mulaw", "-ar", "8000", "-ac", "1", output_path]
@@ -80,32 +111,35 @@ class AudioConverterApp:
             return "failed", 0, 0
 
     def run_conversion(self):
-        if not self.input_folder:
-            self.log_message("Please select an input folder first.")
+        """ Runs the audio conversion process. """
+        if not self.selected_files:
+            self.update_status("⚠️ Please select audio files first.", "warning")
             return
 
-        self.log_message("Starting conversion process...")
+        self.update_status("⏳ Conversion in progress...", "info")
 
         ffmpeg_path, _ = get_ffmpeg_paths()
         if not ffmpeg_path:
-            self.log_message("FFmpeg not found. Please ensure the ffmpeg folder is in the correct location.")
+            self.update_status("❌ FFmpeg not found. Ensure the 'ffmpeg' folder is in the correct location.", "danger")
             return
 
-        input_folder = Path(self.input_folder)
+        input_folder = Path(self.selected_files[0]).parent  
         output_folder = input_folder / "converted"
+
+        # Ensure "converted" folder is deleted before starting
         if output_folder.exists():
             shutil.rmtree(output_folder)
         output_folder.mkdir()
 
-        audio_files = [f for f in input_folder.iterdir() if f.suffix.lower() in [".wav", ".m4a", ".aac", ".mp3"]]
-        total_files = len(audio_files)
-        if total_files == 0:
-            self.log_message("No audio files found for conversion.")
-            return
+        # Delete existing ZIP file if it exists
+        zip_file_path = input_folder / "converted_files.zip"
+        if zip_file_path.exists():
+            zip_file_path.unlink()
 
+        total_files = len(self.selected_files)
         self.progress["value"] = 0
         self.progress["maximum"] = total_files
-        
+
         start_time = time.time()
         converted_count = 0
         failed_count = 0
@@ -113,7 +147,10 @@ class AudioConverterApp:
         total_size_after = 0
 
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-            futures = {executor.submit(self.convert_file, ffmpeg_path, str(file), str(output_folder / (file.stem + ".wav"))): file for file in audio_files}
+            futures = {
+                executor.submit(self.convert_file, ffmpeg_path, file, str(output_folder / (Path(file).stem + ".wav"))): file
+                for file in self.selected_files
+            }
 
             for i, future in enumerate(as_completed(futures)):
                 result, size_before, size_after = future.result()
@@ -123,20 +160,23 @@ class AudioConverterApp:
                     total_size_after += size_after
                 else:
                     failed_count += 1
-                
+
                 if i % 5 == 0 or i == total_files - 1:
                     self.progress["value"] = i + 1
                     self.root.update_idletasks()
-        
-        zip_file_path = input_folder / "converted_files.zip"
-        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+
+        # Create ZIP file for converted files
+        with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             for file in output_folder.iterdir():
-                zipf.write(file, arcname=file.name)
-        
-        summary = f"Conversion Complete: {converted_count} files converted, {failed_count} failed.\nSaved to: {output_folder}\nZIP archive created at: {zip_file_path}"
-        self.log_message(summary)
+                zipf.write(file, file.name)
+
+        elapsed_time = round(time.time() - start_time, 2)
+        size_reduction_mb = round((total_size_before - total_size_after) / (1024 * 1024), 2) if total_size_before else 0
+
+        self.display_summary(converted_count, failed_count, zip_file_path, size_reduction_mb, elapsed_time)
+        self.update_status("✅ Conversion complete. Files zipped!", "success")
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ttk.Window(themename="darkly")
     app = AudioConverterApp(root)
     root.mainloop()
