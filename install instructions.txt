@@ -1,5 +1,0 @@
-pyinstaller --noconsole --onefile --add-binary "ffmpeg/bin/ffmpeg.exe;ffmpeg/bin" --add-binary "ffmpeg/bin/ffprobe.exe;ffmpeg/bin" --icon=icon.ico convertaudio.py
-
-
-git push https://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@github.com/jpol34/audio-converter.git main
-
