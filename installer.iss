@@ -1,3 +1,4 @@
+
 [Setup]
 AppName=ConvertAudio
 AppVersion=1.0
