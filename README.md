@@ -56,7 +56,7 @@ Ensure the following dependencies are installed before running the application:
 To package the script into a standalone executable:
 ```sh
 pip install pyinstaller
-pyinstaller --noconsole --onefile --add-data "ffmpeg;ffmpeg" audio_converter.py
+pyinstaller --noconsole --onefile --add-binary "ffmpeg/bin/ffmpeg.exe;ffmpeg/bin" --add-binary "ffmpeg/bin/ffprobe.exe;ffmpeg/bin" convertaudio.py
 ```
 This creates an `audio_converter.exe` inside the `dist/` folder.
 
